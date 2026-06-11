@@ -51,10 +51,12 @@
 
 // MinGW headers are broken. Who'dve guessed?
 #ifndef _MSC_VER
+#ifndef D3DRTYPECOUNT
 typedef struct _D3DDEVINFO_RESOURCEMANAGER
 {
   char dummy;
 } D3DDEVINFO_RESOURCEMANAGER, * LPD3DDEVINFO_RESOURCEMANAGER;
+#endif
 #endif
 
 // This is the managed pool on D3D9Ex, it's just hidden!

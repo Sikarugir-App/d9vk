@@ -138,6 +138,9 @@ namespace dxvk {
     D3D9ConversionFormat_W11V11U10,
     D3D9ConversionFormat_NV12,
     D3D9ConversionFormat_YV12,
+    D3D9ConversionFormat_A4R4G4B4,
+    D3D9ConversionFormat_A1R5G5B5,
+    D3D9ConversionFormat_R5G6B5,
     D3D9ConversionFormat_Count
   };
 
@@ -212,6 +215,9 @@ namespace dxvk {
       VkFormat              Format,
       VkFormatFeatureFlags Features) const;
 
+    bool m_a4r4g4b4Support;
+    bool m_a1r5g5b5Support;
+    bool m_r5g6b5Support;
     bool m_d24s8Support;
     bool m_d16s8Support;
 

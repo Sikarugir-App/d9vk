@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "d3d9_mem.h"
 #include "../util/util_string.h"
 #include "../util/util_math.h"

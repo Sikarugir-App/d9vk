@@ -296,7 +296,10 @@ namespace dxvk {
       // TODO: validate metadata?
     }
 
-    if (m_mapping.ConversionFormatInfo.FormatType != D3D9ConversionFormat_None) {
+    if (m_mapping.ConversionFormatInfo.FormatType != D3D9ConversionFormat_None &&
+        m_mapping.ConversionFormatInfo.FormatType != D3D9ConversionFormat_A4R4G4B4 &&
+        m_mapping.ConversionFormatInfo.FormatType != D3D9ConversionFormat_A1R5G5B5 &&
+        m_mapping.ConversionFormatInfo.FormatType != D3D9ConversionFormat_R5G6B5) {
       imageInfo.usage  |= VK_IMAGE_USAGE_STORAGE_BIT;
       imageInfo.stages |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     }

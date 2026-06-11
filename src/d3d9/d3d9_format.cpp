@@ -455,6 +455,14 @@ namespace dxvk {
       VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT |
       VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
 
+    m_a4r4g4b4Support = false;
+
+    m_a1r5g5b5Support = CheckImageFormatSupport(adapter, VK_FORMAT_A1R5G5B5_UNORM_PACK16,
+      VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
+
+    m_r5g6b5Support = CheckImageFormatSupport(adapter, VK_FORMAT_R5G6B5_UNORM_PACK16,
+      VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
+
     if (!m_d24s8Support)
       Logger::info("D3D9: VK_FORMAT_D24_UNORM_S8_UINT -> VK_FORMAT_D32_SFLOAT_S8_UINT");
 
@@ -464,6 +472,15 @@ namespace dxvk {
       else
         Logger::info("D3D9: VK_FORMAT_D16_UNORM_S8_UINT -> VK_FORMAT_D32_SFLOAT_S8_UINT");
     }
+
+    if (!m_a4r4g4b4Support)
+      Logger::warn("D3D9: VK_FORMAT_A4R4G4B4_UNORM_PACK16_EXT -> VK_FORMAT_B8G8R8A8_UNORM (Software Promotion)");
+
+    if (!m_a1r5g5b5Support)
+      Logger::warn("D3D9: VK_FORMAT_A1R5G5B5_UNORM_PACK16 -> VK_FORMAT_B8G8R8A8_UNORM (Software Promotion)");
+
+    if (!m_r5g6b5Support)
+      Logger::warn("D3D9: VK_FORMAT_R5G6B5_UNORM_PACK16 -> VK_FORMAT_B8G8R8A8_UNORM (Software Promotion)");
   }
 
   D3D9_VK_FORMAT_MAPPING D3D9VkFormatTable::GetFormatMapping(
@@ -487,6 +504,33 @@ namespace dxvk {
 
     if (!m_d16s8Support && mapping.FormatColor == VK_FORMAT_D16_UNORM_S8_UINT)
       mapping.FormatColor = m_d24s8Support ? VK_FORMAT_D24_UNORM_S8_UINT : VK_FORMAT_D32_SFLOAT_S8_UINT;
+
+    if (!m_a4r4g4b4Support && mapping.FormatColor == VK_FORMAT_A4R4G4B4_UNORM_PACK16) {
+      mapping.FormatColor = VK_FORMAT_B8G8R8A8_UNORM;
+      mapping.FormatSrgb  = VK_FORMAT_B8G8R8A8_SRGB;
+      mapping.Swizzle     = {
+        VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G,
+        VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+      mapping.ConversionFormatInfo.FormatType = D3D9ConversionFormat_A4R4G4B4;
+    }
+
+    if (!m_a1r5g5b5Support && mapping.FormatColor == VK_FORMAT_A1R5G5B5_UNORM_PACK16) {
+      mapping.FormatColor = VK_FORMAT_B8G8R8A8_UNORM;
+      mapping.FormatSrgb  = VK_FORMAT_B8G8R8A8_SRGB;
+      mapping.Swizzle     = {
+        VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G,
+        VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+      mapping.ConversionFormatInfo.FormatType = D3D9ConversionFormat_A1R5G5B5;
+    }
+
+    if (!m_r5g6b5Support && mapping.FormatColor == VK_FORMAT_R5G6B5_UNORM_PACK16) {
+      mapping.FormatColor = VK_FORMAT_B8G8R8A8_UNORM;
+      mapping.FormatSrgb  = VK_FORMAT_B8G8R8A8_SRGB;
+      mapping.Swizzle     = {
+        VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G,
+        VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+      mapping.ConversionFormatInfo.FormatType = D3D9ConversionFormat_R5G6B5;
+    }
 
     return mapping;
   }

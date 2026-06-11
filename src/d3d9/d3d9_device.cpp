@@ -4640,7 +4640,14 @@ namespace dxvk {
       pLockedBox->SlicePitch = pLockedBox->RowPitch * std::max(desc.Height >> MipLevel, 1u);
     }
     else if (likely(!formatInfo->flags.test(DxvkFormatFlag::MultiPlane))) {
-      pLockedBox->RowPitch   = align(formatInfo->elementSize * blockCount.width, 4);
+      uint32_t elementSize = formatInfo->elementSize;
+      auto conv = pResource->GetFormatMapping().ConversionFormatInfo.FormatType;
+      if (conv == D3D9ConversionFormat_A4R4G4B4 ||
+          conv == D3D9ConversionFormat_A1R5G5B5 ||
+          conv == D3D9ConversionFormat_R5G6B5)
+        elementSize = 2;
+
+      pLockedBox->RowPitch   = align(elementSize * blockCount.width, 4);
       pLockedBox->SlicePitch = pLockedBox->RowPitch * blockCount.height;
     } else {
       auto plane = &formatInfo->planes[0];
@@ -4893,6 +4900,93 @@ namespace dxvk {
       }
       VkExtent3D srcBlockCount = util::computeBlockCount(srcTexLevelExtent, srcBlockSize);
       srcBlockCount.height *= std::min(pSrcTexture->GetPlaneCount(), 2u);
+
+      if (convertFormat.FormatType == D3D9ConversionFormat_A4R4G4B4 ||
+          convertFormat.FormatType == D3D9ConversionFormat_A1R5G5B5 ||
+          convertFormat.FormatType == D3D9ConversionFormat_R5G6B5) {
+        VkDeviceSize srcPitch = align(2 * srcBlockCount.width, 4);
+        VkDeviceSize srcSlicePitch = srcPitch * srcBlockCount.height;
+
+        VkDeviceSize dstPitch = align(4 * SrcExtent.width, 4);
+        VkDeviceSize dstSlicePitch = dstPitch * SrcExtent.height;
+
+        D3D9BufferSlice slice = AllocStagingBuffer(dstSlicePitch * SrcExtent.depth);
+
+        const auto srcFmt = pDestTexture->Desc()->Format;
+
+        for (uint32_t z = 0; z < SrcExtent.depth; z++) {
+          for (uint32_t y = 0; y < SrcExtent.height; y++) {
+            const uint16_t* srcRow = reinterpret_cast<const uint16_t*>(
+              reinterpret_cast<const uint8_t*>(mapPtr)
+              + (z + SrcOffset.z) * srcSlicePitch
+              + (y + SrcOffset.y) * srcPitch
+              + (SrcOffset.x) * 2);
+            uint32_t* dstRow = reinterpret_cast<uint32_t*>(
+              reinterpret_cast<uint8_t*>(slice.mapPtr)
+              + z * dstPitch
+              + y * dstPitch);
+
+            for (uint32_t x = 0; x < SrcExtent.width; x++) {
+              uint16_t pixel = srcRow[x];
+              uint32_t a, r, g, b;
+
+              if (convertFormat.FormatType == D3D9ConversionFormat_A4R4G4B4) {
+                a = (pixel >> 12) & 0x0f;
+                r = (pixel >>  8) & 0x0f;
+                g = (pixel >>  4) & 0x0f;
+                b = (pixel >>  0) & 0x0f;
+
+                a = (srcFmt == D3D9Format::X4R4G4B4) ? 0xff : (a * 17);
+                r = r * 17;
+                g = g * 17;
+                b = b * 17;
+              } else if (convertFormat.FormatType == D3D9ConversionFormat_A1R5G5B5) {
+                a = (pixel >> 15) & 0x01;
+                r = (pixel >> 10) & 0x1f;
+                g = (pixel >>  5) & 0x1f;
+                b = (pixel >>  0) & 0x1f;
+
+                a = (srcFmt == D3D9Format::X1R5G5B5) ? 0xff : (a ? 0xff : 0x00);
+                r = (r << 3) | (r >> 2);
+                g = (g << 3) | (g >> 2);
+                b = (b << 3) | (b >> 2);
+              } else { // R5G6B5
+                r = (pixel >> 11) & 0x1f;
+                g = (pixel >>  5) & 0x3f;
+                b = (pixel >>  0) & 0x1f;
+
+                a = 0xff;
+                r = (r << 3) | (r >> 2);
+                g = (g << 2) | (g >> 4);
+                b = (b << 3) | (b >> 2);
+              }
+
+              dstRow[x] = (a << 24) | (r << 16) | (g << 8) | b;
+            }
+          }
+        }
+
+        EmitCs([
+          cSrcSlice       = slice.slice,
+          cDstImage       = image,
+          cDstLayers      = dstLayers,
+          cDstLevelExtent = SrcExtent,
+          cOffset         = DestOffset,
+          cRowAlignment   = dstPitch,
+          cSliceAlignment = dstSlicePitch
+        ] (DxvkContext* ctx) {
+          ctx->copyBufferToImage(
+            cDstImage,  cDstLayers,
+            cOffset, cDstLevelExtent,
+            cSrcSlice.buffer(), cSrcSlice.offset(),
+            cRowAlignment, cSliceAlignment);
+        });
+
+        TrackTextureMappingBufferSequenceNumber(pSrcTexture, SrcSubresource);
+        UnmapTextures();
+        ConsiderFlush(GpuFlushType::ImplicitWeakHint);
+        return;
+      }
 
       // the converter can not handle the 4 aligned pitch so we always repack into a staging buffer
       D3D9BufferSlice slice = AllocStagingBuffer(pSrcTexture->GetMipSize(SrcSubresource));
